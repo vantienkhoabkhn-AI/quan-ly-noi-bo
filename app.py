@@ -19,7 +19,7 @@ except Exception as e:
 # --- 3. THANH MENU BÊN TRÁI ---
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=100)
-    st.title("Phần mềm Quản lý")
+    st.title("Phần mềm Quản lý Cty Hoàng Tú")
     selected = option_menu(
         menu_title="Danh mục chính",
         options=["Tổng quan", "Quản lý Nhân sự", "Lịch công tác"],
@@ -117,3 +117,4 @@ elif selected == "Lịch công tác":
             calendar(events=events, options=cal_options)
         except Exception:
             st.error("⚠️ Lỗi: Bạn cần tạo bảng 'work_schedule' trên Supabase trước!")
+
