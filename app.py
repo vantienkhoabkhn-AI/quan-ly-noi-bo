@@ -4,111 +4,147 @@ from supabase import create_client, Client
 import pandas as pd
 from streamlit_calendar import calendar
 
-# --- 1. KẾT NỐI (Dán trực tiếp để triệt tiêu lỗi Secrets) ---
-URL = "https://hbjlexconqjstongvxef.supabase.co"
-KEY = "sb_publishable_nK8ZcjV3qb3M9HBm93hUNQ_03TKqBNf"
-try:
-    supabase: Client = create_client(URL, KEY)
-except Exception as e:
-    st.error(f"Lỗi kết nối: {e}")
+# --- 1. CẤU HÌNH TRANG ---
+st.set_page_config(page_title="Hệ thống Quản trị Nội bộ", layout="wide")
 
-# --- 2. HỆ THỐNG ĐĂNG NHẬP ---
-if "auth" not in st.session_state: st.session_state.auth = False
+# --- 2. KẾT NỐI SUPABASE ---
+url = "https://hbjlexconqjstongvxef.supabase.co"
+key = "sb_publishable_nK8ZcjV3qb3M9HBm93hUNQ_03TKqBNf"
+try:
+    supabase: Client = create_client(url, key)
+except Exception as e:
+    st.error(f"Lỗi kết nối Supabase: {e}")
+
+# --- 3. KIỂM TRA ĐĂNG NHẬP (Bảo mật cho Admin) ---
+if "auth" not in st.session_state:
+    st.session_state.auth = False
+
 if not st.session_state.auth:
-    st.title("🔐 ĐĂNG NHẬP QUẢN TRỊ")
-    pw = st.text_input("Nhập mật khẩu", type="password")
-    if st.button("Truy cập hệ thống"):
-        if pw == "admin123":
+    st.title("🔐 ĐĂNG NHẬP HỆ THỐNG")
+    pw = st.text_input("Mật khẩu quản trị", type="password")
+    if st.button("Truy cập"):
+        if pw == "admin123": # Mật khẩu của bạn
             st.session_state.auth = True
             st.rerun()
-        else: st.error("Sai mật khẩu!")
+        else:
+            st.error("Sai mật khẩu!")
     st.stop()
 
-# --- 3. THANH MENU & THAY ẢNH ADMIN ---
+# --- 4. THANH MENU BÊN TRÁI (Tích hợp thay ảnh Admin) ---
 with st.sidebar:
-    # Lấy ảnh đại diện Admin từ bảng settings
+    # Lấy ảnh đại diện Admin từ bảng 'settings'
     try:
         res_av = supabase.table("settings").select("gh_chu").eq("key", "admin_avatar").single().execute()
         av_url = res_av.data.get('gh_chu') if res_av.data else "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
-    except: av_url = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
-    
+    except:
+        av_url = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+
+    # Hiển thị ảnh tròn đẹp mắt
     st.markdown(f'<div style="text-align:center"><img src="{av_url}" style="border-radius:50%; width:100px; height:100px; object-fit:cover; border:3px solid #f0f2f6"></div>', unsafe_allow_html=True)
     
-    # Tác vụ: Thay ảnh Admin
-    new_admin_img = st.file_uploader("Thay ảnh đại diện", type=['jpg','png'])
-    if new_admin_img:
+    # Nút thay ảnh Admin
+    up_admin = st.file_uploader("Thay ảnh đại diện", type=['jpg','png'], key="admin_up")
+    if up_admin:
         path = "admin_avatar.png"
-        supabase.storage.from_("images").upload(path, new_admin_img.getvalue(), {"upsert": "true"})
+        supabase.storage.from_("images").upload(path, up_admin.getvalue(), {"upsert": "true"})
         new_url = supabase.storage.from_("images").get_public_url(path)
         supabase.table("settings").upsert({"key": "admin_avatar", "gh_chu": new_url}).execute()
-        st.success("Đã cập nhật ảnh!")
+        st.success("Đã thay ảnh!")
         st.rerun()
 
-    st.divider()
-    selected = option_menu("DANH MỤC", ["Tổng quan", "Nhân sự", "Lịch công tác"], 
-                           icons=['house', 'people', 'calendar-event'], default_index=0)
+    st.title("Phần mềm Quản lý")
+    selected = option_menu(
+        menu_title="Danh mục chính",
+        options=["Tổng quan", "Quản lý Nhân sự", "Lịch công tác"],
+        icons=["house", "people", "calendar-event"],
+        menu_icon="cast",
+        default_index=0,
+    )
     if st.button("🚪 Đăng xuất"):
         st.session_state.auth = False
         st.rerun()
 
-# --- 4. CÁC TÁC VỤ CHI TIẾT ---
+# --- 5. XỬ LÝ CHI TIẾT TỪNG TRANG ---
 
+# --- TRANG 1: TỔNG QUAN ---
 if selected == "Tổng quan":
     st.header("📊 Báo cáo nhanh hệ thống")
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     try:
         res_nv = supabase.table("employees").select("id", count="exact").execute()
         res_lc = supabase.table("work_schedule").select("id", count="exact").execute()
-        col1.metric("Tổng nhân viên", res_nv.count if res_nv.count else 0)
-        col2.metric("Sự kiện lịch", res_lc.count if res_lc.count else 0)
-        
-        # Biểu đồ cơ cấu chức vụ
-        df_all = pd.DataFrame(supabase.table("employees").select("chu_vu").execute().data)
-        if not df_all.empty:
-            st.subheader("📈 Thống kê chức vụ")
-            st.bar_chart(df_all['chu_vu'].value_counts())
-    except: st.info("Chưa có dữ liệu để hiển thị biểu đồ.")
+        col1.metric("Tổng nhân viên", f"{res_nv.count if res_nv.count else 0} người")
+        col2.metric("Lịch công tác", f"{res_lc.count if res_lc.count else 0} sự kiện")
+        col3.metric("Trạng thái", "Trực tuyến", "100%")
+        st.divider()
+        res_all = supabase.table("employees").select("chuc_vu").execute()
+        if res_all.data:
+            st.subheader("📈 Cơ cấu chức vụ nhân sự")
+            df_chart = pd.DataFrame(res_all.data)
+            st.bar_chart(df_chart['chuc_vu'].value_counts())
+    except Exception:
+        st.info("💡 Mẹo: Hãy nhập dữ liệu để biểu đồ hiện lên nhé!")
 
-elif selected == "Nhân sự":
+# --- TRANG 2: QUẢN LÝ NHÂN SỰ (Tích hợp thêm ảnh thẻ) ---
+elif selected == "Quản lý Nhân sự":
     st.header("👥 Quản lý lý lịch nhân viên")
     tab1, tab2 = st.tabs(["➕ Thêm mới", "📑 Danh sách"])
     
     with tab1:
         with st.form("add_nv", clear_on_submit=True):
-            ten = st.text_input("Họ tên")
-            ms = st.text_input("Mã nhân viên")
-            cv = st.selectbox("Chức vụ", ["Trưởng phòng", "Kế toán", "Nhân viên", "Kỹ thuật"])
-            f_nv = st.file_uploader("Tải ảnh thẻ", type=['jpg','png'])
+            c1, c2 = st.columns(2)
+            ten = c1.text_input("Họ và tên")
+            ms = c2.text_input("Mã nhân viên")
+            cv = st.selectbox("Chức vụ", ["Nhân viên", "Trưởng phòng", "Kế toán", "Kỹ thuật", "Quản lý"])
+            f_nv = st.file_uploader("Tải ảnh thẻ nhân viên", type=['jpg','png'])
+            
             if st.form_submit_button("Lưu vào hệ thống"):
-                link_nv = ""
-                if f_nv:
-                    path_nv = f"nv_{ms}.png"
-                    supabase.storage.from_("images").upload(path_nv, f_nv.getvalue(), {"upsert": "true"})
-                    link_nv = supabase.storage.from_("images").get_public_url(path_nv)
-                supabase.table("employees").insert({"Ho_Ten": ten, "ma_vn": ms, "chu_vu": cv, "gh_chu": link_nv}).execute()
-                st.success("Đã thêm thành công!")
-                st.rerun()
+                if ten and ms:
+                    link_nv = ""
+                    if f_nv:
+                        path_nv = f"nv_{ms}.png"
+                        supabase.storage.from_("images").upload(path_nv, f_nv.getvalue(), {"upsert": "true"})
+                        link_nv = supabase.storage.from_("images").get_public_url(path_nv)
+                    
+                    # Lưu vào database (Cột gh_chu dùng để chứa link ảnh)
+                    supabase.table("employees").insert({"ho_ten": ten, "ma_nv": ms, "chuc_vu": cv, "gh_chu": link_nv}).execute()
+                    st.success(f"Đã thêm thành công nhân viên {ten}")
+                    st.rerun()
 
     with tab2:
-        res_list = supabase.table("employees").select("*").execute()
-        if res_list.data:
-            for item in res_list.data:
-                with st.expander(f"👤 {item['Ho_Ten']} - {item['ma_vn']}"):
-                    c1, c2 = st.columns([1, 4])
-                    if item.get('gh_chu'): c1.image(item['gh_chu'], width=120)
-                    c2.write(f"**Chức vụ:** {item['chu_vu']}")
-                    c2.write(f"**Mã số:** {item['ma_vn']}")
+        res = supabase.table("employees").select("*").execute()
+        if res.data:
+            for item in res.data:
+                with st.expander(f"👤 {item['ho_ten']} - {item['ma_nv']}"):
+                    col_img, col_info = st.columns([1, 4])
+                    if item.get('gh_chu'):
+                        col_img.image(item['gh_chu'], width=120)
+                    col_info.write(f"**Chức vụ:** {item['chuc_vu']}")
+                    col_info.write(f"**Mã số:** {item['ma_nv']}")
+        else:
+            st.info("Chưa có dữ liệu nhân viên.")
 
+# --- TRANG 3: LỊCH CÔNG TÁC ---
 elif selected == "Lịch công tác":
-    st.header("📅 Hệ thống lịch công ty")
-    col_f, col_c = st.columns([1, 2])
-    with col_f:
-        with st.form("cal_form"):
-            nd = st.text_input("Nội dung")
-            ngay = st.date_input("Chọn ngày")
-            if st.form_submit_button("Xác nhận"):
-                supabase.table("work_schedule").insert({"title": nd, "start": str(ngay), "end": str(ngay)}).execute()
-                st.rerun()
-    with col_c:
-        data_cal = supabase.table("work_schedule").select("*").execute().data
-        calendar(events=data_cal if data_cal else [])
+    st.header("📅 Hệ thống Lịch công tác")
+    col_form, col_cal = st.columns([1, 2])
+    with col_form:
+        st.subheader("📌 Đăng ký lịch")
+        with st.form("work_form", clear_on_submit=True):
+            content = st.text_input("Nội dung công việc")
+            staff = st.text_input("Người thực hiện")
+            place = st.text_input("Địa điểm")
+            date_val = st.date_input("Chọn ngày")
+            if st.form_submit_button("Xác nhận đăng lịch"):
+                if content and staff:
+                    new_event = {"title": f"{staff}: {content} ({place})", "start": str(date_val), "end": str(date_val)}
+                    supabase.table("work_schedule").insert(new_event).execute()
+                    st.success("Đã cập nhật tờ lịch!")
+                    st.rerun()
+    with col_cal:
+        st.subheader("🗓️ Tờ lịch công ty")
+        try:
+            res_cal = supabase.table("work_schedule").select("*").execute()
+            calendar(events=res_cal.data if res_cal.data else [])
+        except Exception:
+            st.error("⚠️ Lỗi: Kiểm tra lại bảng 'work_schedule' trên Supabase!")
