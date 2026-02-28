@@ -1,0 +1,5 @@
+streamlit
+streamlit-option-menu
+supabase
+pandas
+streamlit-calendar
