@@ -17,7 +17,7 @@ def login():
     with col2:
         password = st.text_input("Mật khẩu truy cập", type="password")
         if st.button("Xác nhận Đăng nhập", use_container_width=True):
-            if password == "admin123": # Mật khẩu của bạn
+            if password == "admin123": # Bạn có thể đổi mật khẩu tại đây
                 st.session_state["logged_in"] = True
                 st.rerun()
             else:
@@ -27,13 +27,14 @@ if not st.session_state["logged_in"]:
     login()
     st.stop()
 
-# --- 3. KẾT NỐI SUPABASE ---
+# --- 3. KẾT NỐI SUPABASE (Dán trực tiếp để tránh lỗi Secrets) ---
+url = "https://hbjlexconqjstongvxef.supabase.co"
+key = "sb_publishable_nk8Zcjv3qb3M9Hbm93HUN9_03TKqBNf" 
+
 try:
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
     supabase: Client = create_client(url, key)
-except Exception:
-    st.error("Thiếu cấu hình Secrets (URL/KEY) trên Streamlit Cloud!")
+except Exception as e:
+    st.error(f"Lỗi kết nối: {e}")
     st.stop()
 
 # --- 4. THANH MENU SIDEBAR ---
@@ -59,34 +60,40 @@ if selected == "Tổng quan":
         res_lc = supabase.table("work_schedule").select("id", count="exact").execute()
         c1.metric("Tổng nhân viên", f"{res_nv.count if res_nv.count else 0}")
         c2.metric("Lịch tuần này", f"{res_lc.count if res_lc.count else 0}")
-        c3.metric("Trạng thái", "Ổn định", "100%")
+        c3.metric("Kết nối", "Ổn định", "100%")
     except:
-        st.info("Chưa có dữ liệu.")
+        st.info("Chưa có dữ liệu báo cáo.")
 
 elif selected == "Quản lý Nhân sự":
-    st.header("👥 Quản lý nhân sự")
-    name = st.text_input("Họ tên")
-    code = st.text_input("Mã NV")
-    if st.button("Thêm nhân viên"):
-        if name and code:
-            supabase.table("employees").insert({"ho_ten": name, "ma_nv": code}).execute()
-            st.success("Đã thêm!")
-            st.rerun()
+    st.header("👥 Quản lý lý lịch nhân viên")
+    with st.form("add_nv", clear_on_submit=True):
+        name = st.text_input("Họ và tên")
+        code = st.text_input("Mã nhân viên")
+        if st.form_submit_button("Thêm mới"):
+            if name and code:
+                supabase.table("employees").insert({"ho_ten": name, "ma_nv": code}).execute()
+                st.success("Đã thêm thành công!")
+                st.rerun()
     
     res = supabase.table("employees").select("*").execute()
     if res.data:
-        st.table(pd.DataFrame(res.data))
+        st.dataframe(pd.DataFrame(res.data), use_container_width=True)
 
 elif selected == "Lịch công tác":
-    st.header("📅 Lịch công tác")
+    st.header("📅 Lịch công tác công ty")
     col_f, col_c = st.columns([1, 2])
     with col_f:
-        with st.form("f_l"):
-            t = st.text_input("Nội dung")
-            d = st.date_input("Ngày")
-            if st.form_submit_button("Lưu"):
-                supabase.table("work_schedule").insert({"title": t, "start": str(d), "end": str(d)}).execute()
-                st.rerun()
+        with st.form("add_event", clear_on_submit=True):
+            t = st.text_input("Nội dung công việc")
+            d = st.date_input("Chọn ngày")
+            if st.form_submit_button("Đăng lịch"):
+                if t:
+                    supabase.table("work_schedule").insert({"title": t, "start": str(d), "end": str(d)}).execute()
+                    st.success("Đã lưu!")
+                    st.rerun()
     with col_c:
-        res_cal = supabase.table("work_schedule").select("*").execute()
-        calendar(events=res_cal.data if res_cal.data else [])
+        try:
+            res_cal = supabase.table("work_schedule").select("*").execute()
+            calendar(events=res_cal.data if res_cal.data else [])
+        except:
+            st.error("Lỗi hiển thị lịch.")
