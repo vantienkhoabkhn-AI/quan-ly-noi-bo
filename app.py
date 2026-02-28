@@ -1,39 +1,49 @@
 import streamlit as st
+from streamlit_option_menu import option_menu
 from supabase import create_client, Client
 import pandas as pd
+from streamlit_calendar import calendar
 
-# 1. THÔNG TIN KẾT NỐI (ĐÃ KIỂM TRA CHÍNH XÁC)
+# 1. CẤU HÌNH (Dán cứng URL/Key để bỏ qua lỗi Secrets)
 URL = "https://hbjlexconqjstongvxef.supabase.co"
 KEY = "sb_publishable_nk8Zcjv3qb3M9Hbm93HUN9_03TKqBNf"
+supabase = create_client(URL, KEY)
 
-# Khởi tạo kết nối
-try:
-    supabase: Client = create_client(URL, KEY)
-except Exception as e:
-    st.error(f"Lỗi khởi tạo: {e}")
+# 2. KIỂM TRA ĐĂNG NHẬP
+if "auth" not in st.session_state:
+    st.session_state.auth = False
 
-st.title("🚀 HỆ THỐNG QUẢN LÝ")
+if not st.session_state.auth:
+    st.title("🔐 ĐĂNG NHẬP")
+    p = st.text_input("Mật khẩu", type="password")
+    if st.button("Vào hệ thống"):
+        if p == "admin123":
+            st.session_state.auth = True
+            st.rerun()
+        else:
+            st.error("Sai mật khẩu!")
+    st.stop()
 
-# 2. HIỂN THỊ DỮ LIỆU NHÂN VIÊN
-st.subheader("👥 Danh sách nhân viên")
-try:
-    # Lấy dữ liệu từ bảng 'employees'
-    res = supabase.table("employees").select("*").execute()
-    if res.data:
-        st.dataframe(pd.DataFrame(res.data), use_container_width=True)
-    else:
-        st.info("Bảng 'employees' hiện đang trống.")
-except Exception as e:
-    st.warning("⚠️ Không tìm thấy bảng 'employees'. Hãy kiểm tra tên bảng trong Supabase.")
+# 3. GIAO DIỆN CHÍNH
+with st.sidebar:
+    chon = option_menu("DANH MỤC", ["Nhân sự", "Lịch công tác"], icons=["people", "calendar"])
+    if st.button("Đăng xuất"):
+        st.session_state.auth = False
+        st.rerun()
 
-# 3. HIỂN THỊ LỊCH CÔNG TÁC
-st.subheader("📅 Lịch công tác")
-try:
-    # Lấy dữ liệu từ bảng 'work_schedule'
-    res_cal = supabase.table("work_schedule").select("*").execute()
-    if res_cal.data:
-        st.write(res_cal.data)
-    else:
-        st.info("Bảng 'work_schedule' hiện đang trống.")
-except Exception as e:
-    st.warning("⚠️ Không tìm thấy bảng 'work_schedule'. Hãy kiểm tra tên bảng trong Supabase.")
+# 4. XỬ LÝ NỘI DUNG
+if chon == "Nhân sự":
+    st.header("👥 Danh sách nhân viên")
+    try:
+        data = supabase.table("employees").select("*").execute()
+        st.dataframe(pd.DataFrame(data.data), use_container_width=True)
+    except:
+        st.warning("⚠️ Lỗi: Có thể bạn đặt tên bảng trong Supabase khác với 'employees'.")
+
+elif chon == "Lịch công tác":
+    st.header("📅 Lịch công tác")
+    try:
+        data_cal = supabase.table("work_schedule").select("*").execute()
+        calendar(events=data_cal.data if data_cal.data else [])
+    except:
+        st.warning("⚠️ Lỗi: Có thể bạn đặt tên bảng trong Supabase khác với 'work_schedule'.")
