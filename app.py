@@ -53,7 +53,32 @@ if selected == "Tổng quan":
             st.bar_chart(df_chart['chuc_vu'].value_counts())
     except Exception:
         st.info("💡 Mẹo: Hãy nhập dữ liệu ở các mục khác để biểu đồ hiện lên nhé!")
+# --- 1.5. HỆ THỐNG ĐĂNG NHẬP ĐƠN GIẢN ---
+def login():
+    st.title("🔐 Đăng nhập hệ thống")
+    password = st.text_input("Nhập mật khẩu truy cập", type="password")
+    if st.button("Đăng nhập"):
+        # Bạn hãy đổi 'admin123' thành mật khẩu bạn muốn
+        if password == "admin123":
+            st.session_state["logged_in"] = True
+            st.success("Đăng nhập thành công!")
+            st.rerun()
+        else:
+            st.error("Sai mật khẩu, vui lòng thử lại!")
 
+# Kiểm tra trạng thái đăng nhập
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+
+if not st.session_state["logged_in"]:
+    login()
+    st.stop() # Dừng toàn bộ code phía dưới nếu chưa đăng nhập thành công
+
+# Nút Đăng xuất ở cuối Sidebar
+with st.sidebar:
+    if st.button("🚪 Đăng xuất"):
+        st.session_state["logged_in"] = False
+        st.rerun()
 # --- TRANG 2: QUẢN LÝ NHÂN SỰ ---
 elif selected == "Quản lý Nhân sự":
     st.header("👥 Quản lý lý lịch nhân viên")
@@ -116,4 +141,5 @@ elif selected == "Lịch công tác":
             }
             calendar(events=events, options=cal_options)
         except Exception:
+
             st.error("⚠️ Lỗi: Bạn cần tạo bảng 'work_schedule' trên Supabase trước!")
