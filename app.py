@@ -2,29 +2,38 @@ import streamlit as st
 from supabase import create_client, Client
 import pandas as pd
 
-# 1. KẾT NỐI (Dán trực tiếp URL và Key của bạn)
+# 1. THÔNG TIN KẾT NỐI (ĐÃ KIỂM TRA CHÍNH XÁC)
 URL = "https://hbjlexconqjstongvxef.supabase.co"
 KEY = "sb_publishable_nk8Zcjv3qb3M9Hbm93HUN9_03TKqBNf"
-supabase = create_client(URL, KEY)
+
+# Khởi tạo kết nối
+try:
+    supabase: Client = create_client(URL, KEY)
+except Exception as e:
+    st.error(f"Lỗi khởi tạo: {e}")
 
 st.title("🚀 HỆ THỐNG QUẢN LÝ")
 
-# 2. KIỂM TRA DỮ LIỆU NHÂN VIÊN
+# 2. HIỂN THỊ DỮ LIỆU NHÂN VIÊN
 st.subheader("👥 Danh sách nhân viên")
 try:
-    # Thử gọi bảng 'employees', nếu lỗi sẽ báo để bạn sửa tên bảng
+    # Lấy dữ liệu từ bảng 'employees'
     res = supabase.table("employees").select("*").execute()
     if res.data:
         st.dataframe(pd.DataFrame(res.data), use_container_width=True)
     else:
-        st.info("Bảng nhân viên hiện đang trống.")
+        st.info("Bảng 'employees' hiện đang trống.")
 except Exception as e:
-    st.warning(f"Cần kiểm tra lại tên bảng 'employees' trong Supabase. Lỗi: {e}")
+    st.warning("⚠️ Không tìm thấy bảng 'employees'. Hãy kiểm tra tên bảng trong Supabase.")
 
-# 3. KIỂM TRA DỮ LIỆU LỊCH
+# 3. HIỂN THỊ LỊCH CÔNG TÁC
 st.subheader("📅 Lịch công tác")
 try:
+    # Lấy dữ liệu từ bảng 'work_schedule'
     res_cal = supabase.table("work_schedule").select("*").execute()
-    st.write(res_cal.data)
+    if res_cal.data:
+        st.write(res_cal.data)
+    else:
+        st.info("Bảng 'work_schedule' hiện đang trống.")
 except Exception as e:
-    st.warning(f"Cần kiểm tra lại tên bảng 'work_schedule' trong Supabase. Lỗi: {e}")
+    st.warning("⚠️ Không tìm thấy bảng 'work_schedule'. Hãy kiểm tra tên bảng trong Supabase.")
